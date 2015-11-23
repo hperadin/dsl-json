@@ -9,6 +9,8 @@ import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
+import javax.lang.model.util.Elements;
+import javax.lang.model.util.Types;
 import javax.tools.*;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -53,11 +55,23 @@ public class CompiledJsonProcessor extends AbstractProcessor {
 	private String namespace = "dsl_" + UUID.randomUUID().toString().replace("-", "");
 	private boolean useJodaTime = false;
 
+	private Elements elements;
+	private Types types;
+	private Messager messager;
+	private TypeMirrorUtils utils;
+
 	@Override
 	public synchronized void init(ProcessingEnvironment processingEnv) {
 		super.init(processingEnv);
-		jsonTypeElement = processingEnv.getElementUtils().getTypeElement("com.dslplatform.json.CompiledJson");
-		jsonDeclaredType = processingEnv.getTypeUtils().getDeclaredType(jsonTypeElement);
+
+		this.elements = processingEnv.getElementUtils();
+		this.types = processingEnv.getTypeUtils();
+		this.messager = processingEnv.getMessager();
+		this.utils = new TypeMirrorUtils(types, elements, messager);
+
+		jsonTypeElement = elements.getTypeElement(CompiledJson.class.getCanonicalName());
+		jsonDeclaredType = types.getDeclaredType(jsonTypeElement);
+
 		Map<String, String> options = processingEnv.getOptions();
 		String ns = options.get("dsljson.namespace");
 		if (ns != null && ns.length() > 0) {
@@ -119,14 +133,14 @@ public class CompiledJsonProcessor extends AbstractProcessor {
 				dsl.append(" {\n");
 
 				if (info.isEnum) {
-					List<String> constants = getEnumConstants(info.element);
+					List<String> constants = utils.getEnumConstants(info.element);
 					for (String c : constants) {
 						dsl.append("    ");
 						dsl.append(c);
 						dsl.append(";\n");
 					}
 				} else {
-					Map<String, ExecutableElement> properties = getBeanProperties(info.element);
+					Map<String, ExecutableElement> properties = utils.getBeanProperties(info.element);
 					for (Map.Entry<String, ExecutableElement> p : properties.entrySet()) {
 						String propertyType = getPropertyType(p.getValue().getReturnType(), structs);
 						if (propertyType != null) {
@@ -189,50 +203,6 @@ public class CompiledJsonProcessor extends AbstractProcessor {
 			}
 		}
 		return false;
-	}
-
-	private List<String> getEnumConstants(TypeElement element) {
-		List<String> result = new ArrayList<String>();
-		for (VariableElement field : ElementFilter.fieldsIn(element.getEnclosedElements())) {
-			String name = field.getSimpleName().toString();
-			if (field.asType().equals(element.asType())) {
-				result.add(name);
-			}
-		}
-		return result;
-	}
-
-	private Map<String, ExecutableElement> getBeanProperties(TypeElement element) {
-		Map<String, VariableElement> setters = new HashMap<String, VariableElement>();
-		Map<String, ExecutableElement> getters = new HashMap<String, ExecutableElement>();
-		for (ExecutableElement method : ElementFilter.methodsIn(element.getEnclosedElements())) {
-			String name = method.getSimpleName().toString();
-			boolean isAccessible = method.getModifiers().contains(Modifier.PUBLIC)
-					&& !method.getModifiers().contains(Modifier.STATIC)
-					&& !method.getModifiers().contains(Modifier.ABSTRACT);
-			if (name.length() < 4 || !isAccessible) {
-				continue;
-			}
-			String property = name.substring(3, 4).toLowerCase() + name.substring(4);
-			if (name.startsWith("get")
-					&& method.getParameters().size() == 0
-					&& method.getReturnType() != null) {
-				getters.put(property, method);
-			} else if (name.startsWith("set")
-					&& method.getParameters().size() == 1) {
-				setters.put(property, method.getParameters().get(0));
-			}
-		}
-		Map<String, ExecutableElement> result = new HashMap<String, ExecutableElement>();
-		for (Map.Entry<String, ExecutableElement> kv : getters.entrySet()) {
-			VariableElement setterArgument = setters.get(kv.getKey());
-			if (setterArgument != null && setterArgument.asType().equals(kv.getValue().getReturnType())) {
-				result.put(kv.getKey(), kv.getValue());
-			} else if (setterArgument != null && (setterArgument.asType() + "<").startsWith(kv.getValue().getReturnType().toString())) {
-				result.put(kv.getKey(), kv.getValue());
-			}
-		}
-		return result;
 	}
 
 	private AnnotationMirror getAnnotation(Element element, DeclaredType annotationType) {
