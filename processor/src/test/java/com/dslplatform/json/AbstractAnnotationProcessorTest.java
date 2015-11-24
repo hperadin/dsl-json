@@ -216,7 +216,6 @@ public abstract class AbstractAnnotationProcessorTest {
 		boolean expectedDiagnosticFound = false;
 
 		for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics) {
-
 			if (diagnostic.getKind().equals(expectedDiagnosticKind)
 					&& (diagnostic.getLineNumber() == expectedLineNumber)) {
 				expectedDiagnosticFound = true;

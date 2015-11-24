@@ -163,15 +163,15 @@ class TypeMirrorUtils {
 
     public boolean isGetter(Element element) {
         return isGetterName(declaredName(element))
-                && element.asType().getKind().equals(TypeKind.EXECUTABLE)
+                && element.getKind().equals(ElementKind.METHOD)
                 && element.getModifiers().contains(Modifier.PUBLIC)
                 && !((ExecutableElement) element).getReturnType().getKind().equals(TypeKind.VOID)
                 && ((ExecutableElement) element).getParameters().isEmpty();
     }
 
     public boolean isSetter(Element element) {
-        return isGetterName(declaredName(element))
-                && element.asType().getKind().equals(TypeKind.EXECUTABLE)
+        return isSetterName(declaredName(element))
+                && element.getKind().equals(ElementKind.METHOD)
                 && element.getModifiers().contains(Modifier.PUBLIC)
                 && ((ExecutableElement) element).getReturnType().getKind().equals(TypeKind.VOID)
                 && ((ExecutableElement) element).getParameters().size() == 1;
@@ -238,7 +238,7 @@ class TypeMirrorUtils {
     }
 
     public boolean isAccesibleMethod(Element element) {
-        if(!(element instanceof ExecutableElement)) return false;
+        if(!element.getKind().equals(ElementKind.METHOD)) return false;
         ExecutableElement method = (ExecutableElement) element;
         return method.getModifiers().contains(Modifier.PUBLIC)
                 && !method.getModifiers().contains(Modifier.STATIC)
@@ -252,7 +252,7 @@ class TypeMirrorUtils {
 
         List<Element> enclosedElements = (List<Element>)element.getEnclosedElements();
         for (Element enclosed : filterWhereEither(enclosedElements, IS_GETTER, IS_SETTER, IS_PUBLIC_FIELD)) {
-            String name = declaredName(enclosed);
+            System.out.println(declaredName(enclosed));
             String property = fieldNameFromAccessor(enclosed);
 
             if(isGetter(enclosed)) {
