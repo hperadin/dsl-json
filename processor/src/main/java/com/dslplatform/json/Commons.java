@@ -22,7 +22,6 @@ class Commons {
                 }
             }
         }
-        System.out.println(result);
         return result;
     }
 

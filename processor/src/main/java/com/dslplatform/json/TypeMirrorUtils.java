@@ -50,7 +50,7 @@ class TypeMirrorUtils {
     public final Comparator<Element> TYPE_NAME_COMPARATOR = new Comparator<Element>() {
         @Override
         public int compare(Element o1, Element o2) {
-            return declaredTypeName(o1).compareTo(declaredTypeName(o2));
+            return typeName(o1).compareTo(typeName(o2));
         }
     };
 
@@ -83,7 +83,6 @@ class TypeMirrorUtils {
     }
 
     public boolean isString(Element element) {
-        System.out.println(element.asType().getKind() + ", " + STRING_TYPE);
         return element.asType().getKind().equals(TypeKind.CHAR)
                 || types.isSameType(element.asType(), STRING_TYPE);
     }
@@ -107,27 +106,35 @@ class TypeMirrorUtils {
                 || types.isSubtype(element.asType(), types.getDeclaredType(list));
     }
 
+    public boolean isParameterizedList(TypeMirror type) {
+        // TODO:
+        return type.toString().startsWith("java.util.List<");
+    }
+
+    public String containedTypeName(TypeMirror parameterizedListType) {
+        // TODO:
+        return parameterizedListType.toString().substring("java.util.List<".length(), parameterizedListType.toString().length() - 1);
+    }
+
     public boolean isClass(Element element) {
         return element.getKind().isClass()
             || element.getKind().isInterface();
     }
 
-    public String declaredName(Element element) {
+    public String simpleName(Element element) {
         return element.getSimpleName().toString();
     }
 
-    public String declaredTypeName(Element element) {
-        return element.asType().getKind().equals(TypeKind.EXECUTABLE) ?
-                ((ExecutableElement)element).getReturnType().toString()
-                : element.toString();
+    public TypeMirror returnType(Element element) {
+        return (element instanceof ExecutableElement) ?
+                ((ExecutableElement)element).getReturnType()
+                : element.asType();
     }
 
-    public String simpleName(Element element) {
-        if(element.asType().getKind().equals(TypeKind.EXECUTABLE)) {
-            return ((ExecutableElement)element).getSimpleName().toString();
-        } else {
-            return element.getSimpleName().toString();
-        }
+    public String typeName(Element element) {
+        return (element instanceof ExecutableElement) ?
+                ((ExecutableElement)element).getReturnType().toString()
+                : element.toString();
     }
 
     public List<Element> supertypeElements(Element element) {
@@ -162,7 +169,7 @@ class TypeMirrorUtils {
     }
 
     public boolean isGetter(Element element) {
-        return isGetterName(declaredName(element))
+        return isGetterName(simpleName(element))
                 && element.getKind().equals(ElementKind.METHOD)
                 && element.getModifiers().contains(Modifier.PUBLIC)
                 && !((ExecutableElement) element).getReturnType().getKind().equals(TypeKind.VOID)
@@ -170,33 +177,17 @@ class TypeMirrorUtils {
     }
 
     public boolean isSetter(Element element) {
-        return isSetterName(declaredName(element))
+        return isSetterName(simpleName(element))
                 && element.getKind().equals(ElementKind.METHOD)
                 && element.getModifiers().contains(Modifier.PUBLIC)
                 && ((ExecutableElement) element).getReturnType().getKind().equals(TypeKind.VOID)
                 && ((ExecutableElement) element).getParameters().size() == 1;
     }
 
-    public List<ExecutableElement> getters(Element element) {
-        List<ExecutableElement> getters = new ArrayList<ExecutableElement>();
-        for(Element enclosed: element.getEnclosedElements()) {
-            if(isGetter(enclosed)) getters.add((ExecutableElement)enclosed);
-        }
-        return getters;
-    }
-
-    public List<ExecutableElement> setters(Element element) {
-        List<ExecutableElement> setters = new ArrayList<ExecutableElement>();
-        for(Element enclosed: element.getEnclosedElements()) {
-            if(isSetter(enclosed)) setters.add((ExecutableElement)enclosed);
-        }
-        return setters;
-    }
-
     public String fieldNameFromAccessor(Element accessor) {
         if(isGetter(accessor) || isSetter(accessor))
-            return fieldNameFromMethodName(declaredName(accessor));
-        else return declaredName(accessor);
+            return fieldNameFromMethodName(simpleName(accessor));
+        else return simpleName(accessor);
     }
 
     public static String fieldNameFromMethodName(String methodName) {
@@ -222,7 +213,7 @@ class TypeMirrorUtils {
     }
 
     public static String lowercaseFirst(String string) {
-        if(nullOrEmpty(string) || string.length() == 1) return string;
+        if(nullOrEmpty(string) || string.length() == 1) return string.toLowerCase();
         return string.toLowerCase().charAt(0) + string.substring(1);
     }
 
@@ -245,36 +236,48 @@ class TypeMirrorUtils {
                 && !method.getModifiers().contains(Modifier.ABSTRACT);
     }
 
-    public Map<String, ExecutableElement> getBeanProperties(TypeElement element) {
+    public Map<String, Element> getBeanProperties(TypeElement element) {
         Map<String, VariableElement> setters = new HashMap<String, VariableElement>();
         Map<String, ExecutableElement> getters = new HashMap<String, ExecutableElement>();
-        Map<String, Element> publicFields = new HashMap<String, Element>();
+        Map<String, VariableElement> publicFields = new HashMap<String, VariableElement>();
 
         List<Element> enclosedElements = (List<Element>)element.getEnclosedElements();
         for (Element enclosed : filterWhereEither(enclosedElements, IS_GETTER, IS_SETTER, IS_PUBLIC_FIELD)) {
-            System.out.println(declaredName(enclosed));
-            String property = fieldNameFromAccessor(enclosed);
+            String propertyName = fieldNameFromAccessor(enclosed);
 
             if(isGetter(enclosed)) {
-                getters.put(property, (ExecutableElement) enclosed);
+                getters.put(propertyName, (ExecutableElement) enclosed);
             }
             else if(isSetter(enclosed)) {
-                setters.put(property, ((ExecutableElement) enclosed).getParameters().get(0));
+                setters.put(propertyName, ((ExecutableElement) enclosed).getParameters().get(0));
             }
             else {
-                publicFields.put(property, enclosed);
+                publicFields.put(propertyName, (VariableElement)enclosed);
             }
         }
 
-        Map<String, ExecutableElement> result = new HashMap<String, ExecutableElement>();
+        Map<String, Element> result = new HashMap<String, Element>();
         for (Map.Entry<String, ExecutableElement> kv : getters.entrySet()) {
-            VariableElement setterArgument = setters.get(kv.getKey());
-            if (setterArgument != null && setterArgument.asType().equals(kv.getValue().getReturnType())) {
-                result.put(kv.getKey(), kv.getValue());
-            } else if (setterArgument != null && (setterArgument.asType() + "<").startsWith(kv.getValue().getReturnType().toString())) {
-                result.put(kv.getKey(), kv.getValue());
+            String propertyName = kv.getKey();
+            ExecutableElement method = kv.getValue();
+
+            VariableElement property = setters.get(propertyName);
+
+            if(property != null
+                && types.isSameType(property.asType(), method.getReturnType())) {
+                    result.put(propertyName, method);
+            }
+
+        }
+
+        for(Map.Entry<String, VariableElement> kv: publicFields.entrySet()) {
+            String propertyName = kv.getKey();
+            VariableElement property = kv.getValue();
+            if(!result.containsKey(propertyName)) {
+                result.put(propertyName, property);
             }
         }
+
         return result;
     }
 }

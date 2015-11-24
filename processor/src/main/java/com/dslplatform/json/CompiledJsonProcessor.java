@@ -140,9 +140,9 @@ public class CompiledJsonProcessor extends AbstractProcessor {
 						dsl.append(";\n");
 					}
 				} else {
-					Map<String, ExecutableElement> properties = utils.getBeanProperties(info.element);
-					for (Map.Entry<String, ExecutableElement> p : properties.entrySet()) {
-						String propertyType = getPropertyType(p.getValue().getReturnType(), structs);
+					Map<String, Element> properties = utils.getBeanProperties(info.element);
+					for (Map.Entry<String, Element> p : properties.entrySet()) {
+						String propertyType = getPropertyType(utils.returnType(p.getValue()), structs);
 						if (propertyType != null) {
 							dsl.append("    ");
 							dsl.append(propertyType);
@@ -207,7 +207,7 @@ public class CompiledJsonProcessor extends AbstractProcessor {
 
 	private AnnotationMirror getAnnotation(Element element, DeclaredType annotationType) {
 		for (AnnotationMirror mirror : element.getAnnotationMirrors()) {
-			if (processingEnv.getTypeUtils().isSameType(mirror.getAnnotationType(), annotationType)) {
+			if (types.isSameType(mirror.getAnnotationType(), annotationType)) {
 				return mirror;
 			}
 		}
@@ -230,8 +230,9 @@ public class CompiledJsonProcessor extends AbstractProcessor {
 				return "json." + item.name + "?[]?";
 			}
 		}
-		if (type.toString().startsWith("java.util.List<")) {
-			String typeName = type.toString().substring("java.util.List<".length(), type.toString().length() - 1);
+
+		if (utils.isParameterizedList(type)) {
+			String typeName = utils.containedTypeName(type);
 			simpleType = SupportedTypes.get(typeName);
 			if (simpleType != null) {
 				return "List<" + simpleType + ">?";
