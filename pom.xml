@@ -13,6 +13,7 @@
 		<module>library</module>
 		<module>java8</module>
 		<module>processor</module>
+		<module>processor-test</module>
 	</modules>
 
 	<properties>

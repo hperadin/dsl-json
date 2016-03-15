@@ -48,6 +48,11 @@
             <version>2.5</version>
             <scope>test</scope>
         </dependency>
+		<dependency>
+			<groupId>commons-io</groupId>
+			<artifactId>commons-io</artifactId>
+			<version>2.4</version>
+		</dependency>
     </dependencies>
 
     <licenses>
@@ -88,12 +93,6 @@
 	</properties>
 
     <build>
-        <resources>
-            <resource>
-                <directory>META-INF</directory>
-                <targetPath>META-INF</targetPath>
-            </resource>
-        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
